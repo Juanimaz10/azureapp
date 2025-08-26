@@ -33,4 +33,6 @@ build/
 ### OTHER ###
 boot.sh
 .dccache
-
+.env
+venv/
+pychache/
