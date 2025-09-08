@@ -37,3 +37,4 @@ boot.sh
 venv/
 pychache/
 *.code-workspace
+azure_app.code-workspace
