@@ -36,3 +36,4 @@ boot.sh
 .env
 venv/
 pychache/
+*.code-workspace
