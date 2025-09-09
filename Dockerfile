@@ -1,4 +1,4 @@
-FROM golang:1.25-bookworm as base
+FROM golang:1.25-bookworm AS base
 WORKDIR /go/app/base
 
 RUN apt-get update 
@@ -11,15 +11,15 @@ COPY go.sum .
 RUN go mod download
 COPY . .
 
-FROM golang:1.25-bookworm as builder
+FROM golang:1.25-bookworm AS builder
 WORKDIR /go/app/builder
 
 COPY --from=base /go/app/base /go/app/builder
 
 RUN CGO_ENABLED=0 go build -o main -ldflags "-s -w"
 
-FROM gcr.io/distroless/static-debian11 as production
-#FROM golang:1.19-bullseye as production
+FROM gcr.io/distroless/static-debian11 AS production
+ENV GIN_MODE=release
 WORKDIR /go/app/bin
 
 COPY --from=builder /go/app/builder/main /go/app/bin/main
