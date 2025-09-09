@@ -69,22 +69,47 @@ def get_acr_id(params):
     result = run_command(['az', 'acr', 'show', '--name', params['acr_name'], '--resource-group', params['resource_group'], '--query', 'id', '--output', 'tsv'], capture_output=True, text=True)
     return result.stdout.strip()
 
+def get_service_principal_id(params):
+    """Obtiene el appId del Service Principal por nombre."""
+    sp_list = run_command([
+        'az', 'ad', 'sp', 'list',
+        '--display-name', params['service_principal_name'],
+        '--query', '"[].appId"', '--output', 'tsv'
+    ], capture_output=True, text=True)
+    return sp_list.stdout.strip()
+
+def create_service_principal(params):
+    """Crea un Service Principal con permisos 'acrpull' y retorna sus credenciales."""
+    acr_scope_id = get_acr_id(params)
+    sp_creds_result = run_command([
+        'az', 'ad', 'sp', 'create-for-rbac',
+        '--name', params['service_principal_name'],
+        '--scopes', acr_scope_id,
+        '--role', 'acrpull',
+        '--query', 'password'
+    ], capture_output=True, text=True)
+    credentials = json.loads(sp_creds_result.stdout)
+    return credentials['appId'], credentials['password']
+
+def reset_service_principal_password(app_id):
+    """Resetea la credencial del Service Principal y retorna el nuevo password."""
+    password = run_command([
+        'az', 'ad', 'sp', 'credential', 'reset',
+        '--id', app_id,
+        '--query', '[0].password', '--output', 'tsv'
+    ], capture_output=True, text=True).stdout.strip()
+    return password
+
 def create_or_get_service_principal(params):
     print(f"\n--- Asegurando Service Principal ---")
-    sp_list = run_command(['az', 'ad', 'sp', 'list', '--display-name', params['service_principal_name'], '--query', '"[].appId"', '--output', 'tsv'], capture_output=True, text=True)
-    app_id = sp_list.stdout.strip()
+    app_id = get_service_principal_id(params)
     if not app_id:
         print("Creando Service Principal con permisos 'acrpull'...")
-        acr_scope_id = get_acr_id(params)
-        sp_creds_result = run_command(['az', 'ad', 'sp', 'create-for-rbac', '--name', params['service_principal_name'], '--scopes', acr_scope_id, '--role', 'acrpull', '--query', 'password'], capture_output=True, text=True)
-        credentials = json.loads(sp_creds_result.stdout)
-        return credentials['appId'], credentials['password']
+        app_id, password = create_service_principal(params)
     else:
         print("Reseteando credencial del Service Principal...")
-        password = run_command(['az', 'ad', 'sp', 'credential', 'reset', '--id', app_id, '--query', '[0].password', '--output', 'tsv'], capture_output=True, text=True).stdout.strip()
-        return app_id, password
-        #TODO: una función para obtener el password y otro para el id
-
+        password = reset_service_principal_password(app_id)
+    return app_id, password
 
 def deploy_container_instance(params, login_server, image_tag, sp_app_id, sp_password):
     """Despliega la imagen del contenedor en Azure Container Instances."""
