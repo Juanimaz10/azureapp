@@ -57,3 +57,4 @@ jobs:
       run: |
         az logout
       #TODO:Que si viene con una etiqueta o con un tag, me cree una imagen con la etiqueta o con el tag en donde es del tipo vX.Y.Z que se envio y ademas, ver de actualizar las versiones de los scripts.
+      #TODO: Vault y terraform 

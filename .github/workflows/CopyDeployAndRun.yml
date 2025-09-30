@@ -39,7 +39,7 @@ jobs:
     - name: 'Login via Docker'
       uses: azure/docker-login@v2
       with:
-        login-server: ${{ env.REPO_NAME }}
+        login-server: ${{ secrets.ACR_NAME_URL }}
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -70,12 +70,13 @@ jobs:
         dns-name-label: azureapp-${{ github.run_id }}-${{ github.run_attempt }}
         registry-username: ${{ secrets.REGISTRY_USERNAME }}
         registry-password: ${{ secrets.REGISTRY_PASSWORD }}
-        ports: 8080
-        cpu: 0.25
-        memory: 0.5
+        ports: 8080 # variables normales de actions
+        cpu: 0.25 # variables normales de actions
+        memory: 0.5 # variables normales de actions
 
     - name: 'Logout'
       run: |
         az logout
         az cache purge
         az account clear
+        
