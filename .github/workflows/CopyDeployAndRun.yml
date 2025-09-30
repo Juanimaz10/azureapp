@@ -44,7 +44,6 @@ jobs:
 
     - name: 'Build and Push Docker Image'
       run: |
-        # CORREGIDO: Se usa un nombre de imagen estándar y sin duplicados.
         IMAGE_NAME=${{ secrets.ACR_NAME_URL }}/${{ github.event.repository.name }}:${{ steps.get_image_tag.outputs.TAG }}
         echo "Building image: $IMAGE_NAME"
         docker build . -t $IMAGE_NAME
@@ -62,6 +61,10 @@ jobs:
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'DEBUG: Print Image Name'
+      run: |
+        echo "Attempting to deploy image: ${{ secrets.ACR_NAME_URL }}/${{ github.event.repository.name }}:${{ needs.build.outputs.IMAGE_TAG }}"
 
     - name: 'Deploy Container Instance'
       uses: azure/aci-deploy@v1
