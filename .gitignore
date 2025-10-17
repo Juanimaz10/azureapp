@@ -38,3 +38,4 @@ venv/
 pychache/
 *.code-workspace
 azure_app.code-workspace
+azureapp.exe
