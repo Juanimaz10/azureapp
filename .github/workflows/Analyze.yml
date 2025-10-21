@@ -1,0 +1,21 @@
+name: Analyze CodeQL (SAST)
+env:
+  REPO_NAME: ${{ github.event.repository.name }}
+on:
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: 'Run CodeQL Analysis'
+      uses: github/codeql-action/init@v3
+      with:
+        languages: 'go'
+    - uses: github/codeql-action/analyze@v3
