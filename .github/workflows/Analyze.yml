@@ -23,7 +23,7 @@ jobs:
         languages: 'python,go'
     - uses: github/codeql-action/analyze@v3
 
-  truffleHog:
+  trufflehog:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout GitHub Action'
@@ -32,5 +32,7 @@ jobs:
       - name: 'Run TruffleHog Analysis'
         uses: trufflesecurity/trufflehog@v3.90.11
         with:
-            extra_args: --results=verified,unknown
+            base: ''
+            head: ${{ github.ref_name }}
+            extra_args: --results=verified,unknown --fail --json | jq
             
