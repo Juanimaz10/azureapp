@@ -22,3 +22,15 @@ jobs:
       with:
         languages: 'python,go'
     - uses: github/codeql-action/analyze@v3
+
+  truffleHog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+
+      - name: 'Run TruffleHog Analysis'
+        uses: trufflesecurity/trufflehog@v3.90.11
+        with:
+            extra_args: --results=verified,unknown
+            
