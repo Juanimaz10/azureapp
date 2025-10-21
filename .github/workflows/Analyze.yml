@@ -10,6 +10,9 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      security-events: write
     steps:
     - name: 'Checkout GitHub Action'
       uses: actions/checkout@v4
@@ -17,5 +20,5 @@ jobs:
     - name: 'Run CodeQL Analysis'
       uses: github/codeql-action/init@v3
       with:
-        languages: 'go'
+        languages: 'python,go'
     - uses: github/codeql-action/analyze@v3
