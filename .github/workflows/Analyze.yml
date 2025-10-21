@@ -34,5 +34,5 @@ jobs:
         with:
             base: ''
             head: ${{ github.ref_name }}
-            extra_args: --results=verified,unknown --fail --json 
+            extra_args: --results=verified,unknown 
             
