@@ -21,8 +21,9 @@ parameters = {
 }
 
 
-def run_command(command, capture_output=False, text=False, input_data=None):
-    print(f"Ejecutando: {' '.join(command)}")
+def run_command(command, capture_output=False, text=False, input_data=None, sensitive=False):
+    if not sensitive:
+        print(f"Ejecutando: {' '.join(command)}")
     try:
         result = sp.run(command, input=input_data, capture_output=capture_output, text=text, check=True)
         return result
@@ -128,7 +129,7 @@ def deploy_container_instance(params, login_server, image_tag, sp_app_id, sp_pas
         '--dns-name-label', params['dns_name_label'],
         '--ports', params['port']
     ]
-    run_command(deploy_cmd)
+    run_command(deploy_cmd, sensitive=True)
     print("Contenedor desplegado exitosamente.")
 
 
