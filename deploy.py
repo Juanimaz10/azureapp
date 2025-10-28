@@ -138,7 +138,7 @@ def main():
     check_or_create_resource_group(parameters)
     check_or_create_acr(parameters)
 
-    #docker_build(parameters)
+    docker_build(parameters)
     acr_login_server, full_image_tag = docker_tag(parameters)
 
     sp_app_id, sp_password = create_or_get_service_principal(parameters)
