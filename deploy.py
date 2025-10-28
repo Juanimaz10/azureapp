@@ -17,7 +17,8 @@ parameters = {
     "dns_name_label": os.getenv("DNS_NAME_LABEL", f"um-app-{os.getpid()}"), #QUE SEA ALEATORIO - 0-999
     "cpu": os.getenv("CPU", "1.0"),
     "memory_gb": os.getenv("MEMORY_GB", "1.5"),
-    "port": os.getenv("PORT", "80")
+    "port": os.getenv("PORT", "80"),
+    "acr_password_secret_name": os.getenv("ACR_PASSWORD_SECRET_NAME")
 }
 
 
@@ -86,8 +87,7 @@ def create_service_principal(params):
         'az', 'ad', 'sp', 'create-for-rbac',
         '--name', params['service_principal_name'],
         '--scopes', acr_scope_id,
-        '--role', 'acrpull',
-        '--query', 'password'
+        '--role', 'acrpull'
     ], capture_output=True, text=True)
     credentials = json.loads(sp_creds_result.stdout)
     return credentials['appId'], credentials['password']
@@ -132,6 +132,10 @@ def deploy_container_instance(params, login_server, image_tag, sp_app_id, sp_pas
     run_command(deploy_cmd, sensitive=True)
     print("Contenedor desplegado exitosamente.")
 
+def docker_login(params):
+    print(f"\n--- Iniciando sesión en ACR ---")
+    run_command(['docker', 'login',  f"{params['acr_name']}.azurecr.io", '-u', params['acr_name'], '-p', params['acr_password_secret_name']])
+    
 
 def main():
     """Flujo principal del script de despliegue."""
@@ -142,7 +146,7 @@ def main():
     acr_login_server, full_image_tag = docker_tag(parameters)
 
     sp_app_id, sp_password = create_or_get_service_principal(parameters)
-    
+    docker_login(parameters)
     docker_push(full_image_tag)
 
 
