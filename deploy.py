@@ -1,9 +1,18 @@
 import os
 import subprocess as sp
 import json
+import platform
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Handle Azure CLI command for different platforms
+def get_az_command():
+    if platform.system() == "Windows":
+        return "az.cmd"
+    return "az"
+
+AZ_CMD = get_az_command()
 
 
 parameters = {
@@ -14,19 +23,19 @@ parameters = {
     "tag_name": os.getenv("TAG_NAME"),
     "service_principal_name": os.getenv("SERVICE_PRINCIPAL_NAME"),
     "container_name": os.getenv("CONTAINER_NAME", "um-app-container"),
-    "dns_name_label": os.getenv("DNS_NAME_LABEL", f"um-app-{os.getpid()}"), #QUE SEA ALEATORIO - 0-999
+    "dns_name_label": os.getenv("DNS_NAME_LABEL", f"um-app-{os.getpid()}"),
     "cpu": os.getenv("CPU", "1.0"),
     "memory_gb": os.getenv("MEMORY_GB", "1.5"),
-    "port": os.getenv("PORT", "80"),
-    "acr_password_secret_name": os.getenv("ACR_PASSWORD_SECRET_NAME")
+    "port": os.getenv("PORT", "80")
 }
 
 
-def run_command(command, capture_output=False, text=False, input_data=None, sensitive=False):
-    if not sensitive:
-        print(f"Ejecutando: {' '.join(command)}")
+def run_command(command, capture_output=False, text=False, input_data=None):
+    print(f"Ejecutando: {' '.join(command)}")
     try:
-        result = sp.run(command, input=input_data, capture_output=capture_output, text=text, check=True)
+        # Use shell=True on Windows for Azure CLI commands
+        use_shell = platform.system() == "Windows" and command[0] in [AZ_CMD, "az.cmd", "az"]
+        result = sp.run(command, input=input_data, capture_output=capture_output, text=text, check=True, shell=use_shell)
         return result
     except sp.CalledProcessError as e:
         print(f"Error ejecutando el comando: {e}")
@@ -36,21 +45,21 @@ def run_command(command, capture_output=False, text=False, input_data=None, sens
 
 def check_or_create_resource_group(params):
     print(f"\n--- Verificando Grupo de Recursos: {params['resource_group']} ---")
-    result = run_command(['az', 'group', 'exists', '--name', params['resource_group']], capture_output=True, text=True)
+    result = run_command([AZ_CMD, 'group', 'exists', '--name', params['resource_group']], capture_output=True, text=True)
     if 'false' in result.stdout:
         print("Creando grupo de recursos...")
-        run_command(['az', 'group', 'create', '--name', params['resource_group'], '--location', params['location']])
+        run_command([AZ_CMD, 'group', 'create', '--name', params['resource_group'], '--location', params['location']])
     else:
         print("El grupo de recursos ya existe.")
 
 def check_or_create_acr(params):
     print(f"\n--- Verificando ACR: {params['acr_name']} ---")
     try:
-        sp.run(['az', 'acr', 'show', '--name', params['acr_name'], '--resource-group', params['resource_group']], capture_output=False, check=True)
+        sp.run([AZ_CMD, 'acr', 'show', '--name', params['acr_name'], '--resource-group', params['resource_group']], capture_output=False, check=True, shell=platform.system() == "Windows")
         print("El ACR ya existe.")
     except sp.CalledProcessError:
         print("Creando ACR...")
-        run_command(['az', 'acr', 'create', '--name', params['acr_name'], '--resource-group', params['resource_group'], '--sku', 'Standard'])
+        run_command([AZ_CMD, 'acr', 'create', '--name', params['acr_name'], '--resource-group', params['resource_group'], '--sku', 'Standard'])
 
 def docker_build(params):
     print(f"\n--- Construyendo imagen Docker ---")
@@ -58,23 +67,30 @@ def docker_build(params):
 
 def docker_tag(params):
     print(f"\n--- Etiquetando imagen para ACR ---")
-    acr_login_server = run_command(['az', 'acr', 'show', '--name', params['acr_name'], '--query', 'loginServer', '--output', 'tsv'], capture_output=True, text=True).stdout.strip()
+    acr_login_server = run_command([AZ_CMD, 'acr', 'show', '--name', params['acr_name'], '--query', 'loginServer', '--output', 'tsv'], capture_output=True, text=True).stdout.strip()
     full_tag = f"{acr_login_server}/{params['image_name']}:{params['tag_name']}"
+    print(f"ACR Login Server: {acr_login_server}")
+    print(f"Full tag: {full_tag}")
     run_command(['docker', 'tag', f"{params['image_name']}:{params['tag_name']}", full_tag])
     return acr_login_server, full_tag
 
 def docker_push(full_image_tag):
     print(f"\n--- Subiendo imagen a ACR ---")
+    print(f"Pushing image with tag: {full_image_tag}")
     run_command(['docker', 'push', full_image_tag])
 
+def acr_login(params):
+    print(f"\n--- Autenticando con ACR: {params['acr_name']} ---")
+    run_command([AZ_CMD, 'acr', 'login', '--name', params['acr_name']])
+
 def get_acr_id(params):
-    result = run_command(['az', 'acr', 'show', '--name', params['acr_name'], '--resource-group', params['resource_group'], '--query', 'id', '--output', 'tsv'], capture_output=True, text=True)
+    result = run_command([AZ_CMD, 'acr', 'show', '--name', params['acr_name'], '--resource-group', params['resource_group'], '--query', 'id', '--output', 'tsv'], capture_output=True, text=True)
     return result.stdout.strip()
 
 def get_service_principal_id(params):
     """Obtiene el appId del Service Principal por nombre."""
     sp_list = run_command([
-        'az', 'ad', 'sp', 'list',
+        AZ_CMD, 'ad', 'sp', 'list',
         '--display-name', params['service_principal_name'],
         '--query', '"[].appId"', '--output', 'tsv'
     ], capture_output=True, text=True)
@@ -84,18 +100,24 @@ def create_service_principal(params):
     """Crea un Service Principal con permisos 'acrpull' y retorna sus credenciales."""
     acr_scope_id = get_acr_id(params)
     sp_creds_result = run_command([
-        'az', 'ad', 'sp', 'create-for-rbac',
+        AZ_CMD, 'ad', 'sp', 'create-for-rbac',
         '--name', params['service_principal_name'],
         '--scopes', acr_scope_id,
         '--role', 'acrpull'
     ], capture_output=True, text=True)
-    credentials = json.loads(sp_creds_result.stdout)
-    return credentials['appId'], credentials['password']
+    
+    try:
+        credentials = json.loads(sp_creds_result.stdout)
+        return credentials['appId'], credentials['password']
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"Error parsing service principal response: {e}")
+        print(f"Raw output: {sp_creds_result.stdout}")
+        exit(1)
 
 def reset_service_principal_password(app_id):
     """Resetea la credencial del Service Principal y retorna el nuevo password."""
     password = run_command([
-        'az', 'ad', 'sp', 'credential', 'reset',
+        AZ_CMD, 'ad', 'sp', 'credential', 'reset',
         '--id', app_id,
         '--query', '[0].password', '--output', 'tsv'
     ], capture_output=True, text=True).stdout.strip()
@@ -116,10 +138,11 @@ def deploy_container_instance(params, login_server, image_tag, sp_app_id, sp_pas
     """Despliega la imagen del contenedor en Azure Container Instances."""
     print(f"\n--- Desplegando contenedor en Azure ---")
     deploy_cmd = [
-        'az', 'container', 'create',
+        AZ_CMD, 'container', 'create',
         '--resource-group', params['resource_group'],
         '--name', params['container_name'],
         '--image', image_tag,
+        '--os-type', 'Linux',
         '--cpu', params['cpu'],
         '--memory', params['memory_gb'],
         '--registry-login-server', login_server,
@@ -129,31 +152,27 @@ def deploy_container_instance(params, login_server, image_tag, sp_app_id, sp_pas
         '--dns-name-label', params['dns_name_label'],
         '--ports', params['port']
     ]
-    run_command(deploy_cmd, sensitive=True)
+    run_command(deploy_cmd)
     print("Contenedor desplegado exitosamente.")
 
-def docker_login(params):
-    print(f"\n--- Iniciando sesión en ACR ---")
-    run_command(['docker', 'login',  f"{params['acr_name']}.azurecr.io", '-u', params['acr_name'], '-p', params['acr_password_secret_name']])
-    
 
 def main():
     """Flujo principal del script de despliegue."""
     check_or_create_resource_group(parameters)
     check_or_create_acr(parameters)
 
-    docker_build(parameters)
+    #docker_build(parameters)
     acr_login_server, full_image_tag = docker_tag(parameters)
 
     sp_app_id, sp_password = create_or_get_service_principal(parameters)
-    docker_login(parameters)
+    
+    acr_login(parameters)
     docker_push(full_image_tag)
-
 
     deploy_container_instance(parameters, acr_login_server, full_image_tag, sp_app_id, sp_password)
 
     print("\n--- Obteniendo URL final ---")
-    fqdn_result = run_command(['az', 'container', 'show', '--resource-group', parameters['resource_group'], '--name', parameters['container_name'], '--query', 'ipAddress.fqdn', '--output', 'tsv'], capture_output=True, text=True)
+    fqdn_result = run_command([AZ_CMD, 'container', 'show', '--resource-group', parameters['resource_group'], '--name', parameters['container_name'], '--query', 'ipAddress.fqdn', '--output', 'tsv'], capture_output=True, text=True)
     
     print("\n\n✅ ¡DESPLIEGUE COMPLETADO!")
     print(f"Tu aplicación está publicada y accesible en la siguiente URL:")
