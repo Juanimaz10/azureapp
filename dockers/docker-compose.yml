@@ -1,7 +1,7 @@
 services:
-  azure-app:
+  azureapp:
     build: .
-    image: azure-app:v1.0
+    image: azureapp:v1.0
     ports:
       - "8080:8080"
 
