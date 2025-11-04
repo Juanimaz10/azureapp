@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Handle Azure CLI command for different platforms
 def get_az_command():
     if platform.system() == "Windows":
         return "az.cmd"
@@ -33,7 +32,6 @@ parameters = {
 def run_command(command, capture_output=False, text=False, input_data=None):
     print(f"Ejecutando: {' '.join(command)}")
     try:
-        # Use shell=True on Windows for Azure CLI commands
         use_shell = platform.system() == "Windows" and command[0] in [AZ_CMD, "az.cmd", "az"]
         result = sp.run(command, input=input_data, capture_output=capture_output, text=text, check=True, shell=use_shell)
         return result
@@ -174,7 +172,7 @@ def main():
     print("\n--- Obteniendo URL final ---")
     fqdn_result = run_command([AZ_CMD, 'container', 'show', '--resource-group', parameters['resource_group'], '--name', parameters['container_name'], '--query', 'ipAddress.fqdn', '--output', 'tsv'], capture_output=True, text=True)
     
-    print("\n\n✅ ¡DESPLIEGUE COMPLETADO!")
+    print(" ¡DESPLIEGUE COMPLETADO!")
     print(f"Tu aplicación está publicada y accesible en la siguiente URL:")
     print(f"http://{fqdn_result.stdout.strip()}:{parameters['port']}")
 
